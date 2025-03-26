@@ -3,7 +3,6 @@ defmodule ExPyshp do
   Reads the shapefile from the given SHP, DBF, and SHX file paths, and returns a list of maps where each map has:
     - "record": a map where each key is a DBF column header and the value is the corresponding record value
     - "geometry": the corresponding Geo struct (converted using the Geo library from the __geo_interface__)
-    - "filename": the base filename (without extension) from which the data came
 
   Returns either:
     - {:ok, base_name, result_list} on success

@@ -1,6 +1,6 @@
 # ExPyshp
 
-Read and write shapefiles using pyshp python library from Elixir.
+Read and write shapefiles using [pyshp](https://github.com/GeospatialPython/pyshp) from Elixir with [pythonx](https://github.com/livebook-dev/pythonx).
 
 ## Installation
 
@@ -24,7 +24,7 @@ extraction_result = ExPyshp.extract("shp.zip")
 shapefile_results =
   case extraction_result do
     {:ok, shapefile_pairs} ->
-      # For each shapefile group, call read/3 and capture the result in a list
+      # For each shapefile group, call read and capture the result in a list
       Enum.map(shapefile_pairs, fn %{shp: shp_path, dbf: dbf_path, shx: shx_path} ->
         case ExPyshp.read(shp_path, dbf_path, shx_path) do
           {:ok, base_name, data} -> {:ok, base_name, data}
