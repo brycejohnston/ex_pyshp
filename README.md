@@ -15,9 +15,12 @@ def deps do
 end
 ```
 
-Example read from zip
+## Usage
+
+### Reading
+
 ```elixir
-# Capture the extraction result from the ZIP file
+# Extract from the ZIP file and get list of files
 extraction_result = ExPyshp.extract("shp.zip")
 
 # Process the extraction result and read each shapefile group
@@ -44,14 +47,21 @@ Enum.each(shapefile_results, fn
   {:error, base_name, reason} ->
     IO.puts("Error reading shapefile for #{base_name}: #{reason}")
 end)
+```
 
-# You can further filter for successful results if needed:
-successful_results =
-  shapefile_results
-  |> Enum.filter(fn
-    {:ok, _, _} -> true
-    _ -> false
-  end)
+### Writing
 
-IO.inspect(successful_results, label: "Successful shapefile results")
+```elixir
+data = [
+  %{
+    "record" => %{"name" => "Feature1", "value" => 123},
+    "geometry" => %Geo.Point{coordinates: {1.0, 2.0}}
+  },
+  %{
+    "record" => %{"name" => "Feature2", "value" => 456},
+    "geometry" => %Geo.Point{coordinates: {3.0, 4.0}}
+  }
+]
+
+ExPyshp.write("output_path", "name", data)
 ```

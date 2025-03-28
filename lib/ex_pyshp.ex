@@ -49,7 +49,12 @@ defmodule ExPyshp do
          parsed_result = Jason.decode!(result_json),
          result_final =
            Enum.map(parsed_result, fn item ->
-             Map.update!(item, "geometry", fn geom -> Geo.JSON.decode!(geom) end)
+             geometry = Geo.JSON.decode!(item["geometry"])
+             wkt = Geo.WKT.encode!(geometry)
+
+             item
+             |> Map.put("geometry", geometry)
+             |> Map.put("wkt", wkt)
            end) do
       {:ok, base_name, result_final}
     else
@@ -59,31 +64,74 @@ defmodule ExPyshp do
   end
 
   @doc """
-  Writes a shapefile to `path` using provided `fields` and `records`.
+  Writes a shapefile to `path` using the provided data.
 
-  - `fields` should be a list like: `[["name", "C", 40], ["value", "N", 10, 2]]`
-  - `records` should be a list of record values corresponding to the fields.
+  - `data` should be a list of maps in the format:
+    [
+      %{
+        "record" => %{"field1" => value1, "field2" => value2, ...},
+        "geometry" => %Geo.Geometry{...}
+      },
+      ...
+    ]
+
+  The function extracts the fields and records from the data and writes them to the shapefile.
   """
-  def write(path, fields, records) do
+  def write(path, name, data) do
+    # Extract fields from the first record's keys
+    fields =
+      data
+      |> Enum.at(0)
+      |> Map.get("record")
+      |> Map.keys()
+      # Default to character fields with max length 255
+      |> Enum.map(&[&1, "C", 255])
+
+    # Extract records and geometries
+    records = Enum.map(data, &Map.get(&1, "record"))
+    geometries = Enum.map(data, &Map.get(&1, "geometry"))
+
+    # Convert fields and records to JSON for Python
     fields_json = Jason.encode!(fields)
     records_json = Jason.encode!(records)
-    safe_path = String.replace(path, "\\", "\\\\")
+
+    # Convert geometries to GeoJSON for Python
+    geometries_json =
+      geometries
+      |> Enum.map(&Geo.JSON.encode!/1)
+      |> Jason.encode!()
+
+    full_path = Path.join(path, name)
+    safe_path = String.replace(full_path, "\\", "\\\\")
 
     bindings = %{
       "safe_path" => safe_path,
       "fields_json" => fields_json,
-      "records_json" => records_json
+      "records_json" => records_json,
+      "geometries_json" => geometries_json
     }
 
     Pythonx.eval(
       """
       import shapefile
       import json
+      from shapely.geometry import shape
+
       writer = shapefile.Writer(safe_path)
+
+      # Add fields
       for f in json.loads(fields_json):
           writer.field(*f)
-      for rec in json.loads(records_json):
-          writer.record(*rec)
+
+      # Add records and geometries
+      records = json.loads(records_json)
+      geometries = json.loads(geometries_json)
+
+      for rec, geom in zip(records, geometries):
+          writer.record(*rec.values())
+          shapely_geom = shape(geom)
+          writer.shape(shapely_geom)
+
       writer.close()
       """,
       bindings
