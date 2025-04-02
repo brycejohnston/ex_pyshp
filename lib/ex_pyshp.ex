@@ -1,12 +1,40 @@
 defmodule ExPyshp do
-  @doc """
-  Reads the shapefile from the given SHP, DBF, and SHX file paths, and returns a list of maps where each map has:
-    - "record": a map where each key is a DBF column header and the value is the corresponding record value
-    - "geometry": the corresponding Geo struct (converted using the Geo library from the __geo_interface__)
+  @moduledoc """
+  A library for reading, writing, and managing shapefiles using Python integration.
 
-  Returns either:
-    - {:ok, base_name, result_list} on success
-    - {:error, base_name, reason} if any file is missing or an error occurs.
+  ## Features
+  - Read shapefiles and return structured data with records and geometries.
+  - Write shapefiles from structured data.
+  - Extract shapefile components (SHP, DBF, SHX) from ZIP archives.
+  - Create ZIP archives containing shapefile components.
+
+  ## Examples
+
+  Reading a shapefile:
+      {:ok, base_name, data} = ExPyshp.read("path/to/file.shp", "path/to/file.dbf", "path/to/file.shx")
+
+  Writing a shapefile:
+      ExPyshp.write("output/path", "output_name", data)
+
+  Creating a ZIP archive:
+      ExPyshp.archive("output/path", "archive_name", ["file1.shp", "file2.dbf", "file3.shx"])
+  """
+
+  @doc """
+  Reads a shapefile and returns structured data.
+
+  ## Parameters
+    - `shp_path` (string): Path to the SHP file.
+    - `dbf_path` (string): Path to the DBF file.
+    - `shx_path` (string): Path to the SHX file.
+
+  ## Returns
+    - `{:ok, base_name, result_list}`: On success, where `result_list` is a list of maps with `record` and `geometry`.
+    - `{:error, base_name, reason}`: If any file is missing or an error occurs.
+
+  ## Example
+
+      iex> {:ok, base_name, data} = ExPyshp.read("file.shp", "file.dbf", "file.shx")
   """
   def read(shp_path, dbf_path, shx_path) do
     # Compute the base filename (without extension) from the SHP file path for error reporting and output.
@@ -64,18 +92,16 @@ defmodule ExPyshp do
   end
 
   @doc """
-  Writes a shapefile to `path` using the provided data.
+  Writes a shapefile to the specified path.
 
-  - `data` should be a list of maps in the format:
-    [
-      %{
-        "record" => %{"field1" => value1, "field2" => value2, ...},
-        "geometry" => %Geo.Geometry{...}
-      },
-      ...
-    ]
+  ## Parameters
+    - `path` (string): Directory where the shapefile will be written.
+    - `name` (string): Name of the shapefile (without extension).
+    - `data` (list of maps): Data to write, where each map contains `record` and `geometry`.
 
-  The function extracts the fields and records from the data and writes them to the shapefile.
+  ## Example
+
+      iex> ExPyshp.write("output/path", "output_name", data)
   """
   def write(path, name, data) do
     # Extract fields from the first record's keys
@@ -139,13 +165,18 @@ defmodule ExPyshp do
   end
 
   @doc """
-  Extracts the given ZIP file to a temporary directory, scans the extracted files,
-  groups together files that have the same base name (before the extension) for SHP, DBF, and SHX,
-  and returns a list of maps containing the paths for matching SHP, DBF, and SHX pairs.
+  Extracts shapefile components (SHP, DBF, SHX) from a ZIP archive.
 
-  Returns either:
-    - {:ok, [%{shp: shp_path, dbf: dbf_path, shx: shx_path}, ...]} on success
-    - {:error, reason} if extraction fails or no valid groups are found.
+  ## Parameters
+    - `zip_path` (string): Path to the ZIP file.
+
+  ## Returns
+    - `{:ok, [%{shp: shp_path, dbf: dbf_path, shx: shx_path}, ...]}`: On success.
+    - `{:error, reason}`: If extraction fails or no valid groups are found.
+
+  ## Example
+
+      iex> {:ok, files} = ExPyshp.extract("path/to/archive.zip")
   """
   def extract(zip_path) do
     with true <- File.exists?(zip_path) || {:error, "ZIP file not found: #{zip_path}"},
@@ -191,6 +222,49 @@ defmodule ExPyshp do
       end
     else
       error -> error
+    end
+  end
+
+  @doc """
+  Creates a ZIP archive containing the specified files.
+
+  ## Parameters
+    - `output_path` (string): Directory where the ZIP archive will be created.
+    - `output_name` (string): Name of the ZIP archive (without `.zip` extension).
+    - `file_paths` (list of strings): List of file paths to include in the archive.
+
+  ## Returns
+    - `{:ok, zip_path}`: On success, where `zip_path` is the full path to the ZIP file.
+    - `{:error, reason}`: If any file is missing or the archive creation fails.
+
+  ## Example
+
+      iex> ExPyshp.archive("output/path", "archive_name", ["file1.shp", "file1.dbf", "file1.shx"])
+  """
+  def archive(output_path, output_name, file_paths) do
+    # Ensure the output directory exists
+    :ok = File.mkdir_p(output_path)
+
+    # Construct the full path for the ZIP archive
+    zip_path = Path.join(output_path, "#{output_name}.zip")
+
+    # Check if all files exist
+    missing_files =
+      file_paths
+      |> Enum.filter(&(!File.exists?(&1)))
+
+    if missing_files != [] do
+      {:error, "The following files are missing: #{Enum.join(missing_files, ", ")}"}
+    else
+      # Create the ZIP archive
+      case :zip.create(
+             String.to_charlist(zip_path),
+             Enum.map(file_paths, &String.to_charlist/1),
+             [:memory]
+           ) do
+        {:ok, _} -> {:ok, zip_path}
+        {:error, reason} -> {:error, "Failed to create ZIP archive: #{inspect(reason)}"}
+      end
     end
   end
 end

@@ -65,3 +65,21 @@ data = [
 
 ExPyshp.write("output_path", "name", data)
 ```
+
+Add shapefiles to zip archive
+
+```elixir
+file_paths = [
+  "/path/to/file1.shp",
+  "/path/to/file1.dbf",
+  "/path/to/file1.shx"
+]
+
+case ExPyshp.archive("/output/directory", "shapefile_archive", file_paths) do
+  {:ok, zip_path} ->
+    IO.puts("ZIP archive created at: #{zip_path}")
+
+  {:error, reason} ->
+    IO.puts("Failed to create ZIP archive: #{reason}")
+end
+```
