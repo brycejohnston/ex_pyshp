@@ -30,3 +30,6 @@ Thumbs.db
 *.dbf
 *.prj
 *.zip
+*.cpg
+__pycache__/
+.venv/
